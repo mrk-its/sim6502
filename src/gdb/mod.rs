@@ -11,7 +11,6 @@ use emulator_6502::Interface6502;
 mod breakpoints;
 mod exec_file;
 mod host_io;
-mod target_description_xml_override;
 
 /// Copy all bytes of `data` to `buf`.
 /// Return the size of data copied.
@@ -37,15 +36,6 @@ pub fn copy_range_to_buf(data: &[u8], offset: u64, length: usize, buf: &mut [u8]
 }
 
 impl Target for Emu {
-    // As an example, I've defined a custom architecture based off
-    // `gdbstub_arch::arm::Armv4t`. The implementation is in the `custom_arch`
-    // module at the bottom of this file.
-    //
-    // unless you're working with a particularly funky architecture that uses custom
-    // registers, you should probably stick to using the simple `target.xml`
-    // implementations from the `gdbstub_arch` repo (i.e: `target.xml` files that
-    // only specify the <architecture> and <feature>s of the arch, instead of
-    // listing out all the registers out manually).
     type Arch = custom_arch::MOSArch;
     type Error = &'static str;
 
@@ -63,22 +53,6 @@ impl Target for Emu {
     fn support_breakpoints(
         &mut self,
     ) -> Option<target::ext::breakpoints::BreakpointsOps<'_, Self>> {
-        Some(self)
-    }
-
-    #[inline(always)]
-    fn support_register_info(
-        &mut self,
-    ) -> Option<target::ext::register_info::RegisterInfoOps<'_, Self>> {
-        Some(self)
-    }
-
-    #[inline(always)]
-    fn support_target_description_xml_override(
-        &mut self,
-    ) -> Option<
-        target::ext::target_description_xml_override::TargetDescriptionXmlOverrideOps<'_, Self>,
-    > {
         Some(self)
     }
 
@@ -193,19 +167,6 @@ impl target::ext::base::singlethread::SingleThreadRangeStepping for Emu {
     }
 }
 
-impl target::ext::register_info::RegisterInfo for Emu {
-    fn get_register_info(&self, n: usize) -> Option<&'static str> {
-        let reg_descr = match n {
-            0 => "name:PC;alt-name:pc;bitsize:16;offset:0;encoding:uint;format:hex;set:General Purpose Registers;gcc:16;dwarf:16;generic:pc;",
-            1 => "name:A;alt-name:a;bitsize:8;offset:2;encoding:uint;format:hex;set:General Purpose Registers;",
-            2 => "name:X;alt-name:x;bitsize:8;offset:3;encoding:uint;format:hex;set:General Purpose Registers;",
-            3 => "name:Y;alt-name:y;bitsize:8;offset:4;encoding:uint;format:hex;set:General Purpose Registers;",
-            _ => return None
-        };
-        return Some(reg_descr);
-    }
-}
-
 pub mod custom_arch {
     use core::num::NonZeroUsize;
 
@@ -291,20 +252,23 @@ pub mod custom_arch {
         type RegId = MosRegId;
         type BreakpointKind = MosBreakpointKind;
 
-        // for _purely demonstrative purposes_, i'll return dummy data from this
-        // function, as it will be overwritten by TargetDescriptionXmlOverride.
-        //
-        // See `examples/armv4t/gdb/target_description_xml_override.rs`
-        //
-        // in an actual implementation, you'll want to return an actual string here!
         fn target_description_xml() -> Option<&'static str> {
-            Some("never gets returned")
+            Some(r#"
+            <?xml version="1.0"?>
+            <!DOCTYPE target SYSTEM "gdb-target.dtd">
+            <target version="1.0">
+                <architecture>mos</architecture>
+                <feature name="org.gnu.gdb.mos">
+                    <!-- <reg name="PC" bitsize="16" type="code_ptr" regnum="0" offset="0" dwarf_regnum="16" altname="pc" generic="pc" /> -->
+                    <reg name="PC" bitsize="16" offset="0" dwarf_regnum="16"  generic="pc" />
+                    <reg name="A" bitsize="8" offset="2" dwarf_regnum="0" regnum = "0" />
+                    <reg name="X" bitsize="8" offset="3" dwarf_regnum="2"  generic="pc" />
+                    <reg name="Y" bitsize="8" offset="4" dwarf_regnum="4"  generic="pc" />
+                </feature>
+            </target>
+            "#)
         }
 
-        // armv4t supports optional single stepping.
-        //
-        // notably, x86 is an example of an arch that does _not_ support
-        // optional single stepping.
         #[inline(always)]
         fn single_step_gdb_behavior() -> SingleStepGdbBehavior {
             SingleStepGdbBehavior::Optional
