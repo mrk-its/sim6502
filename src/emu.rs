@@ -36,7 +36,7 @@ impl InMemoryFile {
 
 pub struct System {
     finished: bool,
-    mem: [u8; 65536],
+    pub mem: [u8; 65536],
 }
 
 impl Default for System {
