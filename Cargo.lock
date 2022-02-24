@@ -229,6 +229,7 @@ dependencies = [
  "emulator_6502",
  "gdbstub",
  "goblin",
+ "log",
  "pretty_env_logger",
 ]
 

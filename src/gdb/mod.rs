@@ -9,31 +9,7 @@ use emulator_6502::Interface6502;
 // Additional GDB extensions
 
 mod breakpoints;
-mod exec_file;
 mod host_io;
-
-/// Copy all bytes of `data` to `buf`.
-/// Return the size of data copied.
-pub fn copy_to_buf(data: &[u8], buf: &mut [u8]) -> usize {
-    let len = buf.len().min(data.len());
-    buf[..len].copy_from_slice(&data[..len]);
-    len
-}
-
-/// Copy a range of `data` (start at `offset` with a size of `length`) to `buf`.
-/// Return the size of data copied. Returns 0 if `offset >= buf.len()`.
-///
-/// Mainly used by qXfer:_object_:read commands.
-pub fn copy_range_to_buf(data: &[u8], offset: u64, length: usize, buf: &mut [u8]) -> usize {
-    let offset = offset as usize;
-    if offset > data.len() {
-        return 0;
-    }
-
-    let start = offset;
-    let end = (offset + length).min(data.len());
-    copy_to_buf(&data[start..end], buf)
-}
 
 impl Target for Emu {
     type Arch = custom_arch::MOSArch;
@@ -64,14 +40,22 @@ impl Target for Emu {
 
 impl SingleThreadBase for Emu {
     fn read_registers(&mut self, regs: &mut custom_arch::MosRegs) -> TargetResult<(), Self> {
-        regs.rc.copy_from_slice(&self.system.mem[0..32]);
-        regs.rs.iter_mut().enumerate().for_each(|(i, v)| *v = self.system.mem[i * 2] as u16 + self.system.mem[i * 2 + 1] as u16 * 256);
         regs.pc = self.cpu.get_program_counter();
         regs.a = self.cpu.get_accumulator();
         regs.x = self.cpu.get_x_register();
         regs.y = self.cpu.get_y_register();
         regs.s = self.cpu.get_stack_pointer();
         regs.flags = self.cpu.get_status_register();
+        if let Some(im_reg_map) = &self.im_reg_map {
+            for (idx, addr) in im_reg_map.iter().cloned().enumerate() {
+                regs.rc[idx] = self.system.mem[addr];
+                if idx % 2 == 0 {
+                    regs.rs[idx / 2] = self.system.mem[addr] as u16 + self.system.mem[addr + 1] as u16 * 256;
+                }
+            }
+            // regs.rc.copy_from_slice(&self.system.mem[0..32]);
+            // regs.rs.iter_mut().enumerate().for_each(|(i, v)| *v = self.system.mem[i * 2] as u16 + self.system.mem[i * 2 + 1] as u16 * 256);
+        }
         Ok(())
     }
 
@@ -82,7 +66,13 @@ impl SingleThreadBase for Emu {
         self.cpu.set_y_register(regs.y);
         self.cpu.set_stack_pointer(regs.s);
         self.cpu.set_status_register(regs.flags);
-        self.system.mem[0..32].copy_from_slice(&regs.rc);
+
+        if let Some(im_reg_map) = &self.im_reg_map {
+            for (idx, addr) in im_reg_map.iter().cloned().enumerate() {
+                self.system.mem[addr] = regs.rc[idx];
+            }
+            // self.system.mem[0..32].copy_from_slice(&regs.rc);
+        }
 
         Ok(())
     }
@@ -96,15 +86,15 @@ impl SingleThreadBase for Emu {
     // }
 
     fn read_addrs(&mut self, start_addr: u16, data: &mut [u8]) -> TargetResult<(), Self> {
-        for (addr, val) in (start_addr..).zip(data.iter_mut()) {
-            *val = self.system.read(addr);
+        for (addr, val) in (start_addr as usize..).zip(data.iter_mut()) {
+            *val = self.system.read(addr as u16);
         }
         Ok(())
     }
 
     fn write_addrs(&mut self, start_addr: u16, data: &[u8]) -> TargetResult<(), Self> {
-        for (addr, val) in (start_addr..).zip(data.iter().copied()) {
-            self.system.write(addr, val);
+        for (addr, val) in (start_addr as usize..).zip(data.iter().copied()) {
+            self.system.write(addr as u16, val);
         }
         Ok(())
     }

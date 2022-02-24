@@ -2,6 +2,7 @@ use crate::DynResult;
 use std::collections::HashMap;
 
 use emulator_6502::{Interface6502, MOS6502};
+use goblin::elf::sym::{st_bind, STB_GLOBAL};
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -88,6 +89,7 @@ pub struct Emu {
     pub(crate) watchpoints: Vec<u16>,
     pub(crate) breakpoints: Vec<u16>,
     pub(crate) files: HashMap<u32, InMemoryFile>,
+    pub(crate) im_reg_map: Option<[usize; 32]>,
 }
 
 impl Default for Emu {
@@ -100,6 +102,7 @@ impl Default for Emu {
             watchpoints: Default::default(),
             breakpoints: Default::default(),
             files: Default::default(),
+            im_reg_map: None,
         }
     }
 }
@@ -108,6 +111,23 @@ impl Emu {
     pub fn load_elf(&mut self, program_elf: &[u8]) -> DynResult<()> {
         // load ELF
         let elf_header = goblin::elf::Elf::parse(program_elf)?;
+        self.im_reg_map = None;
+        for sym in elf_header.syms.iter() {
+            let sym_name = elf_header.strtab.get_at(sym.st_name).unwrap_or("");
+            println!("HERE: {:?} {}", sym_name, st_bind(sym.st_info) == STB_GLOBAL);
+            if sym_name.starts_with("__rc") {
+                println!("HERE");
+                if let Ok(idx) = sym_name[4..].parse::<usize>() {
+                    if idx < 32 && sym.st_value < 256 {
+                        let im_reg_map = self.im_reg_map.get_or_insert_with(|| [0; 32]);
+                        im_reg_map[idx] = sym.st_value as usize;
+                        log::info!("immaginary reg mapping: {} -> {:02x?}", sym_name, sym.st_value);
+                    } else {
+                        log::warn!("invalid immaginary reg mapping: {} -> {:04x?}", sym_name, sym.st_value);
+                    }
+                }
+            }
+        }
 
         // copy all in-memory sections from the ELF file into system RAM
         let sections = elf_header
