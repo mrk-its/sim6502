@@ -36,6 +36,8 @@ impl InMemoryFile {
 
 pub struct System {
     finished: bool,
+    cycle_cnt: u64,
+    cycle_cnt_save: u64,
     pub mem: [u8; 65536],
 }
 
@@ -43,6 +45,8 @@ impl Default for System {
     fn default() -> Self {
         Self {
             finished: false,
+            cycle_cnt: 0,
+            cycle_cnt_save: 0,
             mem: [0; 65536],
         }
     }
@@ -50,7 +54,16 @@ impl Default for System {
 
 impl Interface6502 for System {
     fn read(&mut self, address: u16) -> u8 {
-        self.mem[address as usize]
+        match address {
+            0xfff0 => {
+                self.cycle_cnt_save = self.cycle_cnt;
+                (self.cycle_cnt_save & 0xff) as u8
+            }
+            0xfff1 => ((self.cycle_cnt_save >> 8) & 0xff) as u8,
+            0xfff2 => ((self.cycle_cnt_save >> 16) & 0xff) as u8,
+            0xfff3 => ((self.cycle_cnt_save >> 24) & 0xff) as u8,
+            _ => self.mem[address as usize]
+        }
     }
 
     fn write(&mut self, address: u16, data: u8) {
@@ -138,6 +151,7 @@ impl Emu {
         // });
 
         self.cpu.cycle(&mut self.system);
+        self.system.cycle_cnt += 1;
         if self.system.finished {
             self.exec_mode = ExecMode::Idle;
             return Some(Event::Halted);
