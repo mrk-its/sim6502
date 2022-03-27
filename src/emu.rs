@@ -14,6 +14,7 @@ pub enum Event {
     WatchRead(u16),
 }
 
+#[derive(Debug)]
 pub enum ExecMode {
     Idle,
     Step,
@@ -151,10 +152,11 @@ impl Emu {
         }
 
         self.cpu.set_program_counter(elf_header.entry as u16);
+        eprintln!("PC: {:04x}", elf_header.entry as u16);
         self.watchpoints = Default::default();
         self.breakpoints = Default::default();
         self.files = Default::default();
-        self.exec_mode = ExecMode::Step;
+        self.exec_mode = ExecMode::Continue;
 
         Ok(())
     }
@@ -171,6 +173,7 @@ impl Emu {
         // });
 
         self.cpu.cycle(&mut self.system);
+
         self.system.cycle_cnt += 1;
         if self.system.finished {
             self.exec_mode = ExecMode::Idle;
@@ -207,6 +210,7 @@ impl Emu {
     /// will use the provided callback to poll the connection for incoming data
     /// every 1024 steps.
     pub fn run(&mut self, mut poll_incoming_data: impl FnMut() -> bool) -> RunEvent {
+        eprintln!("target run: {:?}", self.exec_mode);
         match self.exec_mode {
             ExecMode::Idle => loop {
                 if poll_incoming_data() {
@@ -232,6 +236,7 @@ impl Emu {
             }
             // just continue, but with an extra PC check
             ExecMode::RangeStep(start, end) => {
+                eprintln!("range step");
                 let mut cycles = 0;
                 loop {
                     if cycles % 1024 == 0 {

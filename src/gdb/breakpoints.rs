@@ -3,6 +3,7 @@ use gdbstub::target::ext::breakpoints::WatchKind;
 use gdbstub::target::TargetResult;
 
 use crate::emu::Emu;
+use gdbstub_mos_arch::MosBreakpointKind;
 
 impl target::ext::breakpoints::Breakpoints for Emu {
     #[inline(always)]
@@ -25,17 +26,19 @@ impl target::ext::breakpoints::SwBreakpoint for Emu {
     fn add_sw_breakpoint(
         &mut self,
         addr: u16,
-        _kind: crate::gdb::custom_arch::MosBreakpointKind,
+        _kind: MosBreakpointKind,
     ) -> TargetResult<bool, Self> {
         self.breakpoints.push(addr);
+        eprintln!("Add breakpoint {:04x}", addr);
         Ok(true)
     }
 
     fn remove_sw_breakpoint(
         &mut self,
         addr: u16,
-        _kind: crate::gdb::custom_arch::MosBreakpointKind,
+        _kind: MosBreakpointKind,
     ) -> TargetResult<bool, Self> {
+        eprintln!("Del breakpoint {:04x}", addr);
         match self.breakpoints.iter().position(|x| *x == addr) {
             None => return Ok(false),
             Some(pos) => {

@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 emulator_6502 = {version="1.1", features=["implementation_transparency"]}
-gdbstub = {path="../gdbstub"}
+gdbstub = "0.6.1"
 goblin = "0.5"
 pretty_env_logger = "0"
 log = "0"
+gdbstub_mos_arch = {git="https://github.com/mrk-its/gdbstub_mos_arch"}
