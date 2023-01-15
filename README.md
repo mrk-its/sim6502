@@ -4,16 +4,39 @@ Very simple 6502 simulator for running llvm-mos-compiled ELF binaries with remot
 
 ## Usage
 
-use following .llvminit file to upload ELF binary to emulator and start debugging:
+save following test program as `test.c`:
+```
+#include <stdio.h>
+
+int main() {
+    printf("Hello from llvm-mos!\n");
+}
+```
+
+and compile it with:
+```
+mos-sim-clang -g test.c -O1
+```
+
+It should produce `a.out.elf` binary.
+
+use following .lldbinit file to upload ELF binary to emulator
 
 ```
 target create a.out
-# target modules load -f a.out -s 0
 
 platform select remote-gdb-server
 platform connect connect://localhost:9001
-platform put-file a.out a.out
+platform put-file a.out.elf a.out
 platform disconnect
 
 gdb-remote localhost:9001
 ```
+
+and run `lldb` to start debugging.
+
+You may also need to add following line:
+```
+settings set target.load-cwd-lldbinit true
+```
+to enable loading `.lldbinit` from current directory

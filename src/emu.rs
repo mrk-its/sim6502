@@ -115,9 +115,8 @@ impl Emu {
         self.im_reg_map = None;
         for sym in elf_header.syms.iter() {
             let sym_name = elf_header.strtab.get_at(sym.st_name).unwrap_or("");
-            println!("HERE: {:?} {}", sym_name, st_bind(sym.st_info) == STB_GLOBAL);
+            // println!("HERE: {:?} {}", sym_name, st_bind(sym.st_info) == STB_GLOBAL);
             if sym_name.starts_with("__rc") {
-                println!("HERE");
                 if let Ok(idx) = sym_name[4..].parse::<usize>() {
                     if idx < 32 && sym.st_value < 256 {
                         let im_reg_map = self.im_reg_map.get_or_insert_with(|| [0; 32]);
