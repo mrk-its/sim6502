@@ -23,11 +23,11 @@ It should produce `a.out.elf` binary.
 use following .lldbinit file to upload ELF binary to emulator
 
 ```
-target create a.out
+target create a.out.elf
 
 platform select remote-gdb-server
 platform connect connect://localhost:9001
-platform put-file a.out.elf a.out
+platform put-file a.out.elf a.out.elf
 platform disconnect
 
 gdb-remote localhost:9001
